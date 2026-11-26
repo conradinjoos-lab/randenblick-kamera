@@ -43,7 +43,13 @@
   #galerieknopf { background-size: cover; background-position: center; font-weight: 600; }
   #notizknopf { font-size: 22px; }
 
-  #hinweis { position: fixed; left: 12px; right: 12px; bottom: calc(108px + env(safe-area-inset-bottom)); padding: 8px 12px;
+  #ziel { position: fixed; left: 10px; right: 10px; bottom: calc(104px + env(safe-area-inset-bottom)); padding: 7px 12px;
+    display: grid; grid-template-columns: 1fr auto; gap: 0 10px; text-align: left; align-items: baseline; }
+  #ziel[hidden] { display: none; }
+  #zielort { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #zielzahl { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+  #zielmotiv { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+  #hinweis { position: fixed; left: 12px; right: 12px; bottom: calc(176px + env(safe-area-inset-bottom)); padding: 8px 12px;
     text-align: center; font-size: 14px; display: none; }
   #hinweis.an { display: block; }
   #blitz { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .25s; }
@@ -68,6 +74,30 @@
   .foto div { padding: 6px 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .foto div b { color: var(--text); font-weight: 600; }
   .fehler { color: var(--bad); }
+  .tour { margin: 22px 0 8px; font-size: 17px; display: flex; justify-content: space-between; gap: 8px; }
+  .tour span { color: var(--muted); font-weight: 400; font-size: 14px; }
+  details.ort { background: #171a1e; border: 1px solid var(--line); border-radius: 12px; margin: 6px 0; }
+  details.ort.fertig { opacity: .55; }
+  details.ort.hier { border-color: var(--accent); }
+  details.ort summary { list-style: none; padding: 11px 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; cursor: pointer; }
+  details.ort summary::-webkit-details-marker { display: none; }
+  details.ort summary b { font-weight: 600; }
+  details.ort summary .zahl { font-variant-numeric: tabular-nums; color: var(--accent); white-space: nowrap; }
+  details.ort summary .zahl.voll { color: var(--good); }
+  details.ort summary small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+  .marke { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px; margin-left: 4px; vertical-align: 2px;
+    border: 1px solid var(--line); color: var(--muted); font-weight: 400; }
+  .marke.wichtig { color: var(--ok); border-color: var(--ok); }
+  .marke.frag { color: var(--bad); border-color: var(--bad); }
+  .ortinfo { color: var(--muted); font-size: 13px; padding: 0 12px 6px; }
+  .schritt { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+  .schritt button { background: none; border: 0; text-align: left; padding: 10px 12px; min-height: 48px; }
+  .schritt .waehlen { flex: 1; display: flex; gap: 10px; justify-content: space-between; align-items: center; }
+  .schritt .waehlen span:last-child { font-variant-numeric: tabular-nums; color: var(--accent); white-space: nowrap; }
+  .schritt.voll .waehlen { color: var(--muted); }
+  .schritt.voll .waehlen span:last-child { color: var(--good); }
+  .schritt.jetzt { background: rgba(124, 196, 255, .14); }
+  .schritt .minus { color: var(--muted); border-left: 1px solid var(--line); width: 48px; text-align: center; padding: 0; }
   dialog { background: #171a1e; color: var(--text); border: 1px solid var(--line); border-radius: 14px; max-width: min(92vw, 30rem); }
   dialog::backdrop { background: rgba(0, 0, 0, .6); }
 </style>
@@ -82,6 +112,7 @@
   <div id="ortzeile">–</div>
 </div>
 <div id="waage" hidden><i id="linie"></i></div>
+<button id="ziel" class="panel" hidden aria-label="Raum und Motiv wählen"><span id="zielort"></span><span id="zielzahl"></span><small id="zielmotiv"></small></button>
 <div id="hinweis" class="panel"></div>
 <div id="unten" hidden>
   <button id="notizknopf" class="rund panel" aria-label="Notiz für die nächsten Fotos">✎</button>
@@ -96,6 +127,7 @@
     Die Fotos bleiben auf dem Handy – nichts wird ins Internet geschickt.</p>
   <button id="los" class="knopf haupt">Kamera und Sensoren starten</button>
   <p id="startfehler" class="fehler"></p>
+  <p id="listeinfo"></p>
   <h2>So werden die Daten möglichst genau</h2>
   <ul>
     <li>Im Freien warten, bis die GPS-Anzeige <span class="good">grün</span> ist (unter 5 m). Drinnen ist GPS meist 10–30 m daneben.</li>
@@ -122,6 +154,20 @@
   <div id="liste"></div>
 </section>
 
+<section id="fehlt" class="seite">
+  <button id="fehltzurueck" class="knopf">‹ Zur Kamera</button>
+  <h1>Was noch fehlt</h1>
+  <p id="fehltinfo"></p>
+  <p style="color:var(--muted);font-size:14px">Ein Motiv antippen: Es wird zum Ziel, und die nächsten Fotos zählen dafür.
+    Raum und Motiv kommen in den Dateinamen und ins Foto. Ist ein Motiv voll, springt das Ziel zum nächsten.</p>
+  <label class="schalter"><input type="checkbox" id="fertigweg" checked> Fertige Orte ausblenden</label>
+  <div>
+    <button id="keinziel" class="knopf">Ohne Ziel fotografieren</button>
+    <button id="standweg" class="knopf weg">Zähler auf null</button>
+  </div>
+  <div id="orte"></div>
+</section>
+
 <dialog id="notizdialog">
   <form method="dialog">
     <p>Notiz für die nächsten Fotos (z. B. Raum oder Standort):</p>
@@ -130,7 +176,7 @@
   </form>
 </dialog>
 
-<script src="rechnen.js?v=1"></script>
+<script src="rechnen.js?v=2"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -334,6 +380,151 @@ function hinweis(text, ms = 4000) {
   clearTimeout(hinweisZeit); hinweisZeit = setTimeout(() => h.classList.remove('an'), ms);
 }
 
+// ---------- Raumliste: was fehlt ----------
+// Die Liste kommt aus dem privaten Link (#liste=...) und bleibt nur auf diesem Handy.
+let liste = null;            // {touren, orte}
+let stand = {};              // {ortId: {schrittIndex: anzahl}}
+let ziel = null;             // {id, k}
+const ortVon = id => liste && liste.orte.find(o => o.id === id);
+const speichern = (k, v) => sicher(() => localStorage.setItem(k, JSON.stringify(v)));
+const lesen = k => sicher(() => JSON.parse(localStorage.getItem(k)), null);
+
+async function listeEntpacken(code) {
+  const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  return JSON.parse(text);
+}
+async function listeAusLink() {
+  const m = location.hash.match(/^#liste=([A-Za-z0-9_-]+)/);
+  if (!m) return false;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const roh = await listeEntpacken(m[1]);
+    liste = RB.listeAufbauen(roh);
+    speichern('rb-liste', roh);
+    hinweis('Raumliste geladen: ' + liste.orte.length + ' Orte. Sie bleibt auf diesem Handy.', 4000);
+  } catch (e) {
+    hinweis('Der Link enthält keine gültige Raumliste.', 6000);
+  }
+  if (ziel && !ortVon(ziel.id)) ziel = null;
+  listeAnzeigen();
+  return true;
+}
+function zielTeile() {
+  const o = ziel && ortVon(ziel.id), s = o && o.schritte[ziel.k];
+  return s ? { o, s, k: ziel.k, ist: RB.gemacht(stand, o.id, ziel.k) } : null;
+}
+function zielSetzen(z) {
+  ziel = z; speichern('rb-ziel', z); zielZeigen();
+}
+function summe() {
+  let soll = 0, ist = 0, fertig = 0;
+  for (const o of liste.orte) { const c = RB.ortZaehlen(o, stand); soll += c.soll; ist += c.ist; if (!c.fehlt) fertig++; }
+  return { soll, ist, fertig };
+}
+function zielZeigen() {
+  const el = $('ziel');
+  el.hidden = !liste || $('unten').hidden;
+  if (!liste) return;
+  const z = zielTeile();
+  if (z) {
+    $('zielort').textContent = z.o.label;
+    $('zielzahl').textContent = z.ist < z.s.n ? 'Foto ' + (z.ist + 1) + ' / ' + z.s.n : 'extra (' + z.ist + '/' + z.s.n + ')';
+    $('zielmotiv').textContent = (z.k + 1) + '. ' + z.s.text;
+  } else {
+    const t = summe();
+    $('zielort').textContent = 'Kein Ziel – Raum und Motiv wählen ›';
+    $('zielzahl').textContent = (t.soll - t.ist) + ' fehlen';
+    $('zielmotiv').textContent = 'Fotos ohne Ziel bekommen nur die Notiz.';
+  }
+}
+function listeAnzeigen() {
+  zielZeigen();
+  if (!liste) {
+    $('listeinfo').textContent = 'Keine Raumliste auf diesem Handy. Einmal den privaten Link öffnen, dann zeigt die App, was noch fehlt.';
+    $('fehltinfo').textContent = 'Keine Raumliste geladen.';
+    $('orte').replaceChildren();
+    return;
+  }
+  const t = summe();
+  $('listeinfo').textContent = 'Raumliste: ' + t.fertig + ' von ' + liste.orte.length + ' Orten fertig, ' + (t.soll - t.ist) + ' Fotos fehlen noch.';
+  $('fehltinfo').textContent = t.fertig + ' von ' + liste.orte.length + ' Orten fertig · ' + t.ist + ' von ' + t.soll + ' Fotos gemacht.';
+  const weg = $('fertigweg').checked, offen = new Set([...$('orte').querySelectorAll('details[open]')].map(d => d.dataset.id));
+  if (ziel) offen.add(ziel.id);
+  const frag = document.createDocumentFragment();
+  const touren = liste.touren.length ? liste.touren : [{ nr: 0, name: 'Orte' }];
+  for (const tour of touren) {
+    const orte = liste.orte.filter(o => liste.touren.length ? o.tour === tour.nr : true);
+    if (!orte.length) continue;
+    const zz = orte.map(o => RB.ortZaehlen(o, stand));
+    const sichtbar = orte.filter((o, i) => !weg || zz[i].fehlt || (ziel && ziel.id === o.id));
+    const h = document.createElement('h2'); h.className = 'tour';
+    h.append('Tour ' + tour.nr + ' · ' + tour.name);
+    const sp = document.createElement('span');
+    sp.textContent = zz.filter(c => !c.fehlt).length + '/' + orte.length + ' fertig';
+    h.append(sp); frag.append(h);
+    if (!sichtbar.length) { const p = document.createElement('p'); p.textContent = 'Alles fotografiert ✓'; p.style.color = 'var(--good)'; frag.append(p); }
+    for (const o of sichtbar) frag.append(ortKarte(o, offen.has(o.id)));
+  }
+  $('orte').replaceChildren(frag);
+}
+function ortKarte(o, auf) {
+  const c = RB.ortZaehlen(o, stand);
+  const d = document.createElement('details');
+  d.className = 'ort' + (c.fehlt ? '' : ' fertig') + (ziel && ziel.id === o.id ? ' hier' : '');
+  d.dataset.id = o.id; d.open = auf;
+  const s = document.createElement('summary');
+  const b = document.createElement('b'); b.textContent = o.label;
+  if (o.prio === 1) { const m = document.createElement('span'); m.className = 'marke wichtig'; m.textContent = 'wichtig'; b.append(m); }
+  if (o.erl) { const m = document.createElement('span'); m.className = 'marke frag'; m.textContent = 'vorher fragen'; b.append(m); }
+  const z = document.createElement('span'); z.className = 'zahl' + (c.fehlt ? '' : ' voll');
+  z.textContent = c.fehlt ? c.ist + ' / ' + c.soll : '✓ fertig';
+  const k = document.createElement('small'); k.textContent = o.stock + (o.ort ? ' · ' + o.ort : '');
+  s.append(b, z, k); d.append(s);
+  if (o.warum) { const p = document.createElement('div'); p.className = 'ortinfo'; p.textContent = o.warum; d.append(p); }
+  o.schritte.forEach((st, i) => {
+    const ist = RB.gemacht(stand, o.id, i);
+    const row = document.createElement('div');
+    row.className = 'schritt' + (ist >= st.n ? ' voll' : '') + (ziel && ziel.id === o.id && ziel.k === i ? ' jetzt' : '');
+    const w = document.createElement('button'); w.className = 'waehlen';
+    const t1 = document.createElement('span'); t1.textContent = (i + 1) + '. ' + st.text;
+    const t2 = document.createElement('span'); t2.textContent = ist >= st.n ? '✓ ' + ist + '/' + st.n : ist + '/' + st.n;
+    w.append(t1, t2);
+    w.onclick = () => { zielSetzen({ id: o.id, k: i }); $('fehlt').classList.remove('an'); hinweis('Ziel: ' + o.label + ' – ' + st.text, 2500); };
+    row.append(w);
+    if (ist > 0) {
+      const m = document.createElement('button'); m.className = 'minus'; m.textContent = '−'; m.setAttribute('aria-label', 'Ein Foto weniger zählen');
+      m.onclick = () => { zaehlen(o.id, i, -1); listeAnzeigen(); };
+      row.append(m);
+    }
+    d.append(row);
+  });
+  return d;
+}
+function zaehlen(id, k, d) {
+  const r = stand[id] || (stand[id] = {});
+  r[k] = Math.max(0, (r[k] || 0) + d);
+  if (!r[k]) delete r[k];
+  if (!Object.keys(r).length) delete stand[id];
+  speichern('rb-stand', stand);
+}
+// Nach dem Foto: zählen und wenn nötig zum nächsten Motiv springen. Gibt einen kurzen Text zurück.
+function zielWeiter(z) {
+  zaehlen(z.o.id, z.k, 1);
+  const ist = RB.gemacht(stand, z.o.id, z.k);
+  let text;
+  if (ist < z.s.n) text = 'Foto ' + ist + ' von ' + z.s.n;
+  else {
+    const n = RB.naechsterSchritt(z.o, stand, z.k + 1);
+    if (n >= 0) { zielSetzen({ id: z.o.id, k: n }); text = 'Motiv fertig ✓ – weiter: ' + z.o.schritte[n].text; }
+    else { zielSetzen(null); text = z.o.label + ' ist fertig ✓'; }
+  }
+  zielZeigen();
+  return text;
+}
+
 // ---------- Aufnehmen ----------
 const zeitzone = d => { const o = -d.getTimezoneOffset(); return (o < 0 ? '-' : '+') + RB.pad(Math.floor(Math.abs(o) / 60)) + ':' + RB.pad(Math.abs(o) % 60); };
 
@@ -342,6 +533,7 @@ async function aufnehmen() {
   if (knopf.disabled) return;
   knopf.disabled = true;
   const jetzt = new Date();
+  const z = zielTeile();
   const lage = jetzigeLage(600);
   const pos = RB.positionEstimate(fixes, Date.now());
   $('blitz').style.opacity = .6; setTimeout(() => $('blitz').style.opacity = 0, 80);
@@ -352,7 +544,10 @@ async function aufnehmen() {
     const lv = pos ? RB.lv95(pos.lat, pos.lon, pos.alt) : null;
     const notiz = $('notiz').value.trim();
     const zeile = {
-      zeit: jetzt.toISOString(), lat: pos && pos.lat.toFixed(7), lon: pos && pos.lon.toFixed(7),
+      zeit: jetzt.toISOString(),
+      raum_id: z ? z.o.id : '', raum: z ? z.o.label : '', stockwerk: z ? z.o.stock : '',
+      motiv_nr: z ? z.k + 1 : '', motiv: z ? z.s.text : '', motiv_foto: z ? (z.ist + 1) + '/' + z.s.n : '',
+      lat: pos && pos.lat.toFixed(7), lon: pos && pos.lon.toFixed(7),
       hoehe_ell_m: pos && f1(pos.alt, 1), gps_genau_m: pos && f1(pos.acc, 1), hoehe_genau_m: pos && f1(pos.altAcc, 1),
       gps_messungen: pos && pos.n, gps_alter_s: pos && f1(pos.alter, 1),
       lv95_e: lv && lv.E.toFixed(2), lv95_n: lv && lv.N.toFixed(2), hoehe_ln02_m: lv && f1(lv.H, 1),
@@ -365,17 +560,20 @@ async function aufnehmen() {
       breite_px: w, hoehe_px: h, notiz
     };
     const S = RB.pad;
-    const name = 'RB_' + jetzt.getFullYear() + S(jetzt.getMonth() + 1) + S(jetzt.getDate()) + '_' + S(jetzt.getHours()) +
+    const name = 'RB_' + (z ? RB.dateiTeil(z.o.id) + '-' + (z.k + 1) + '_' : '') + jetzt.getFullYear() + S(jetzt.getMonth() + 1) + S(jetzt.getDate()) + '_' + S(jetzt.getHours()) +
       S(jetzt.getMinutes()) + S(jetzt.getSeconds()) + '_' + S(jetzt.getMilliseconds(), 3) + '.jpg';
     zeile.datei = name;
+    const beschreibung = [z && z.o.label, z && (z.k + 1) + '. ' + z.s.text + ' (' + zeile.motiv_foto + ')', notiz].filter(Boolean).join(' - ');
     const kommentar = ['Randenblick Kamera',
+      z ? `raum=${z.o.id} ${z.o.label} (${z.o.stock}); motiv=${z.k + 1} ${z.s.text}; foto=${zeile.motiv_foto}` : '',
       lage ? `richtung_geo=${zeile.richtung_geo_grad} richtung_mag=${zeile.richtung_mag_grad} dekl=${RB.DEKLINATION}` : 'keine Lage',
       lage ? `neigung=${zeile.neigung_grad} kippung=${zeile.kippung_grad} streuung=${zeile.richtung_streuung_grad}` : '',
       pos ? `gps_genau=${zeile.gps_genau_m}m hoehe_ell=${zeile.hoehe_ell_m} hoehe_genau=${zeile.hoehe_genau_m} n=${pos.n} alter=${zeile.gps_alter_s}s` : 'kein GPS',
       lv ? `lv95=${zeile.lv95_e},${zeile.lv95_n} h_ln02=${zeile.hoehe_ln02_m}` : '',
       'quelle=' + zeile.quelle, notiz ? 'notiz=' + notiz : ''].filter(Boolean).join('; ');
     const tiff = RB.buildTiff({
-      local: jetzt, offset: zeitzone(jetzt), width: w, height: h, comment: kommentar, description: notiz || null,
+      local: jetzt, offset: zeitzone(jetzt), width: w, height: h, comment: kommentar, description: beschreibung || null,
+      title: z ? z.o.label + ' - ' + (z.k + 1) + '. ' + z.s.text : (notiz || null),
       gps: pos ? { lat: pos.lat, lon: pos.lon, alt: lv && lv.H != null ? lv.H : null, acc: pos.acc, t: pos.t } : null,
       dir: lage ? lage.headingTrue : null
     });
@@ -389,7 +587,8 @@ async function aufnehmen() {
     const warn = [];
     if (!pos) warn.push('ohne GPS'); else if (pos.acc > 12) warn.push('GPS ungenau (±' + Math.round(pos.acc) + ' m)');
     if (!lage) warn.push('ohne Richtung'); else if (lage.streuung > 3) warn.push('verwackelt');
-    hinweis('Gespeichert' + (warn.length ? ' – ' + warn.join(', ') : '') + ' · ' + w + '×' + h, 2500);
+    const weiter = z ? zielWeiter(z) : '';
+    hinweis('Gespeichert' + (warn.length ? ' – ' + warn.join(', ') : '') + (weiter ? ' · ' + weiter : ' · ' + w + '×' + h), weiter ? 3500 : 2500);
   } catch (e) {
     hinweis('Aufnahme fehlgeschlagen: ' + (e && e.message || e), 6000);
   } finally {
@@ -413,7 +612,7 @@ function fotoAnzeigen(foto) {
   const t = document.createElement('div');
   const zeit = new Date(m.zeit);
   t.innerHTML = '<b></b><br><span></span><br><span></span>';
-  t.children[0].textContent = zeit.toLocaleTimeString('de-CH') + (m.notiz ? ' · ' + m.notiz : '');
+  t.children[0].textContent = zeit.toLocaleTimeString('de-CH') + (m.raum ? ' · ' + m.raum + ' · ' + m.motiv_nr + '.' : '') + (m.notiz ? ' · ' + m.notiz : '');
   t.children[2].textContent = m.gps_genau_m ? '±' + m.gps_genau_m + ' m · ' + m.lv95_e.split('.')[0] + '/' + m.lv95_n.split('.')[0] : 'ohne GPS';
   t.children[4].textContent = m.richtung_geo_grad ? m.richtung_geo_grad + '° · Neigung ' + m.neigung_grad + '°' : 'ohne Richtung';
   el.append(img, t);
@@ -455,7 +654,24 @@ $('notizdialog').addEventListener('close', () => {
 });
 $('autospeichern').onchange = () => sicher(() => localStorage.setItem('rb-auto', $('autospeichern').checked ? '1' : '0'));
 $('ausloeser').onclick = aufnehmen;
-document.addEventListener('keydown', e => { if ((e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown') && !$('galerie').classList.contains('an')) { e.preventDefault(); aufnehmen(); } });
+document.addEventListener('keydown', e => {
+  if ((e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown') && !$('unten').hidden &&
+    !$('galerie').classList.contains('an') && !$('fehlt').classList.contains('an')) { e.preventDefault(); aufnehmen(); }
+});
+$('ziel').onclick = () => {
+  listeAnzeigen();
+  $('fehlt').classList.add('an');
+  const hier = ziel && $('orte').querySelector('details.hier');
+  if (hier) hier.scrollIntoView({ block: 'center' });
+};
+$('fehltzurueck').onclick = () => $('fehlt').classList.remove('an');
+$('fertigweg').onchange = () => { sicher(() => localStorage.setItem('rb-fertigweg', $('fertigweg').checked ? '1' : '0')); listeAnzeigen(); };
+$('keinziel').onclick = () => { zielSetzen(null); $('fehlt').classList.remove('an'); hinweis('Ohne Ziel: Fotos zählen nirgends mit.', 2500); };
+$('standweg').onclick = () => {
+  if (!confirm('Alle Zähler auf null setzen? Die Fotos selbst bleiben.')) return;
+  stand = {}; speichern('rb-stand', stand); listeAnzeigen();
+};
+window.addEventListener('hashchange', listeAusLink);
 
 async function wachHalten() {
   try { if ('wakeLock' in navigator && !document.hidden) wakeLock = await navigator.wakeLock.request('screen'); } catch { }
@@ -475,6 +691,7 @@ $('los').onclick = async () => {
   }
   $('start').classList.remove('an');
   ['oben', 'waage', 'unten'].forEach(id => $(id).hidden = false);
+  zielZeigen();
   wachHalten();
   const q = await lageStarten();
   if (!q) hinweis('Kein Kompass gefunden – Fotos bekommen nur GPS.', 6000);
@@ -485,6 +702,13 @@ $('los').onclick = async () => {
 (async () => {
   $('notiz').value = sicher(() => localStorage.getItem('rb-notiz'), '') || '';
   $('autospeichern').checked = sicher(() => localStorage.getItem('rb-auto'), '1') !== '0';
+  $('fertigweg').checked = sicher(() => localStorage.getItem('rb-fertigweg'), '1') !== '0';
+  stand = lesen('rb-stand') || {};
+  ziel = lesen('rb-ziel');
+  const gespeichert = lesen('rb-liste');
+  if (gespeichert) liste = sicher(() => RB.listeAufbauen(gespeichert), null);
+  if (ziel && !ortVon(ziel.id)) ziel = null;
+  if (!await listeAusLink()) listeAnzeigen();
   db = await dbOeffnen();
   const alle = await dbTun('readonly', st => st.getAll());
   if (alle && alle.length) { alle.sort((a, b) => a.name < b.name ? -1 : 1); fotos = alle; alle.forEach(fotoAnzeigen); }

@@ -135,7 +135,10 @@
   const asciiOnly = s => String(s)
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
     .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').replace(/ß/g, 'ss')
-    .replace(/[^\x20-\x7e]/g, '?');
+    .replace(/[‐-―]/g, '-').replace(/[«»“-‟]/g, '"').replace(/[‘-‛]/g, "'")
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '?');
+  // Windows-Felder (XPTitle, XPComment): UTF-16LE, voller Zeichensatz.
+  const utf16 = s => { const a = new Uint8Array(2 * s.length + 2); for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a[2 * i] = c & 255; a[2 * i + 1] = c >> 8; } return a; };
   const enc = s => { const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 255; return b; };
   const ascii = s => enc(asciiOnly(s) + '\0');
   function u16(...v) { const a = new Uint8Array(2 * v.length), d = new DataView(a.buffer); v.forEach((x, i) => d.setUint16(2 * i, x, true)); return a; }
@@ -184,6 +187,8 @@
       E(0x8769, LONG, u32(0))
     ];
     if (m.description) ifd0.push(E(0x010E, ASCII, ascii(m.description)));
+    if (m.title) ifd0.push(E(0x9C9B, BYTE, utf16(String(m.title))));
+    if (m.description) ifd0.push(E(0x9C9C, BYTE, utf16(String(m.description))));
     const comment = enc('ASCII\0\0\0' + asciiOnly(m.comment || ''));
     const exif = [
       E(0x9000, UNDEF, enc('0232')),
@@ -238,7 +243,37 @@
   }
 
   // ---------- CSV ----------
-  const CSV_SPALTEN = ['datei', 'zeit', 'lat', 'lon', 'hoehe_ell_m', 'gps_genau_m', 'hoehe_genau_m', 'gps_messungen', 'gps_alter_s',
+  // ---------- Raumliste (aus dem privaten Link) ----------
+  // roh = {v, s: {typ: [[text, anzahl]]}, t: [[nr, name]], p: [[id, stock, label, typ, tour, prio, erl, plus[], warum, ort]]}
+  function listeAufbauen(roh) {
+    if (!roh || roh.v !== 1 || !Array.isArray(roh.p)) throw new Error('Unbekannte Liste');
+    const touren = (roh.t || []).map(([nr, name]) => ({ nr, name }));
+    const orte = roh.p.map(([id, stock, label, typ, tour, prio, erl, plus, warum, ort]) => ({
+      id: String(id), stock, label, typ, tour, prio, erl: !!erl, warum, ort,
+      schritte: ((roh.s && roh.s[typ]) || []).map(([text, n]) => ({ text, n: n || 1 }))
+        .concat((plus || []).map(text => ({ text, n: 1 })))
+    }));
+    return { touren, orte };
+  }
+  const gemacht = (stand, id, k) => (stand && stand[id] && stand[id][k]) || 0;
+  function ortZaehlen(ort, stand) {
+    let soll = 0, ist = 0;
+    ort.schritte.forEach((s, k) => { soll += s.n; ist += Math.min(s.n, gemacht(stand, ort.id, k)); });
+    return { soll, ist, fehlt: soll - ist };
+  }
+  // Nächster offener Schritt ab k (k selbst eingeschlossen), sonst -1.
+  function naechsterSchritt(ort, stand, k = 0) {
+    const n = ort.schritte.length;
+    for (let i = 0; i < n; i++) {
+      const j = (k + i) % n;
+      if (gemacht(stand, ort.id, j) < ort.schritte[j].n) return j;
+    }
+    return -1;
+  }
+  // Kurzname für Dateinamen: nur a-z, 0-9.
+  const dateiTeil = s => String(s).replace(/[^A-Za-z0-9]+/g, '').slice(0, 12) || 'x';
+
+  const CSV_SPALTEN = ['datei', 'zeit', 'raum_id', 'raum', 'stockwerk', 'motiv_nr', 'motiv', 'motiv_foto', 'lat', 'lon', 'hoehe_ell_m', 'gps_genau_m', 'hoehe_genau_m', 'gps_messungen', 'gps_alter_s',
     'lv95_e', 'lv95_n', 'hoehe_ln02_m', 'richtung_geo_grad', 'richtung_mag_grad', 'neigung_grad', 'kippung_grad', 'richtung_streuung_grad',
     'blick_x', 'blick_y', 'blick_z', 'oben_x', 'oben_y', 'oben_z', 'quelle', 'breite_px', 'hoehe_px', 'notiz'];
   function csv(rows) {
@@ -247,6 +282,7 @@
   }
 
   const RB = { DEKLINATION, norm360, matFromQuat, matFromEuler, mul, cameraVectors, averagePose, angles, headingSpread, cardinal,
-    lv95, distM, positionEstimate, rotTransform, buildTiff, insertExif, csv, CSV_SPALTEN, pad };
+    lv95, distM, positionEstimate, rotTransform, buildTiff, insertExif, csv, CSV_SPALTEN, pad,
+    listeAufbauen, gemacht, ortZaehlen, naechsterSchritt, dateiTeil };
   if (typeof module !== 'undefined' && module.exports) module.exports = RB; else g.RB = RB;
 })(typeof window !== 'undefined' ? window : globalThis);
