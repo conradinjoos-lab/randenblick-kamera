@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Randenblick Kamera</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #000; --panel: rgba(16, 18, 20, .78); --text: #f4f5f6; --muted: #a9b1b8;
+    --good: #4cd07d; --ok: #f1c84b; --bad: #ff6b5e; --accent: #7cc4ff; --line: rgba(255, 255, 255, .18);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  button { font: inherit; color: inherit; }
+  #bild { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px); }
+
+  #oben { position: fixed; left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); display: grid;
+    grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; pointer-events: none; }
+  .wert { min-width: 0; }
+  .wert b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wert small { color: var(--muted); font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ortzeile { grid-column: 1 / -1; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--line); padding-top: 5px; }
+  .good { color: var(--good); } .ok { color: var(--ok); } .bad { color: var(--bad); }
+
+  #waage { position: fixed; left: 50%; top: 50%; width: 46vmin; height: 0; transform: translate(-50%, -50%); pointer-events: none; }
+  #waage i { position: absolute; left: 0; right: 0; top: -1px; height: 2px; background: var(--ok); border-radius: 2px; box-shadow: 0 0 3px #000; }
+  #waage i.gerade { background: var(--good); }
+  #waage::before { content: ""; position: absolute; left: 50%; top: -9px; width: 18px; height: 18px; margin-left: -9px;
+    border: 2px solid rgba(255, 255, 255, .8); border-radius: 50%; box-shadow: 0 0 3px #000; }
+
+  #unten { position: fixed; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex;
+    align-items: center; justify-content: space-around; padding: 0 12px; }
+  #ausloeser { width: 78px; height: 78px; border-radius: 50%; border: 5px solid #fff; background: rgba(255, 255, 255, .25); }
+  #ausloeser:active { background: rgba(255, 255, 255, .7); }
+  #ausloeser:disabled { opacity: .4; }
+  .rund { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; padding: 0; }
+  #galerieknopf { background-size: cover; background-position: center; font-weight: 600; }
+  #notizknopf { font-size: 22px; }
+
+  #hinweis { position: fixed; left: 12px; right: 12px; bottom: calc(108px + env(safe-area-inset-bottom)); padding: 8px 12px;
+    text-align: center; font-size: 14px; display: none; }
+  #hinweis.an { display: block; }
+  #blitz { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .25s; }
+
+  .seite { position: fixed; inset: 0; overflow-y: auto; padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    background: #0d0f11; display: none; }
+  .seite.an { display: block; }
+  .seite h1 { font-size: 24px; margin: 6px 0 12px; }
+  .seite h2 { font-size: 17px; margin: 20px 0 8px; }
+  .seite p, .seite li { color: #d6dbe0; }
+  .seite ul { padding-left: 20px; }
+  .knopf { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 18px; border-radius: 12px;
+    border: 1px solid var(--line); background: #20252a; margin: 4px 6px 4px 0; }
+  .knopf.haupt { background: #2f7bd6; border-color: #2f7bd6; font-weight: 600; width: 100%; font-size: 18px; }
+  .knopf.weg { color: var(--bad); }
+  label.schalter { display: flex; gap: 10px; align-items: center; min-height: 44px; }
+  label.schalter input { width: 22px; height: 22px; }
+  input[type=text] { width: 100%; min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: #1a1e22; color: var(--text); padding: 0 12px; font: inherit; }
+  #liste { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+  .foto { background: #171a1e; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 12px; }
+  .foto img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #000; }
+  .foto div { padding: 6px 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .foto div b { color: var(--text); font-weight: 600; }
+  .fehler { color: var(--bad); }
+  dialog { background: #171a1e; color: var(--text); border: 1px solid var(--line); border-radius: 14px; max-width: min(92vw, 30rem); }
+  dialog::backdrop { background: rgba(0, 0, 0, .6); }
+</style>
+</head>
+<body>
+<video id="bild" playsinline muted autoplay></video>
+
+<div id="oben" class="panel" hidden>
+  <div class="wert"><small>GPS</small><b id="gps">–</b><small id="gpsx">warte …</small></div>
+  <div class="wert"><small>Richtung</small><b id="richtung">–</b><small id="richtungx">–</small></div>
+  <div class="wert"><small>Neigung · Kippung</small><b id="neigung">–</b><small id="neigungx">–</small></div>
+  <div id="ortzeile">–</div>
+</div>
+<div id="waage" hidden><i id="linie"></i></div>
+<div id="hinweis" class="panel"></div>
+<div id="unten" hidden>
+  <button id="notizknopf" class="rund panel" aria-label="Notiz für die nächsten Fotos">✎</button>
+  <button id="ausloeser" aria-label="Foto aufnehmen"></button>
+  <button id="galerieknopf" class="rund panel" aria-label="Aufgenommene Fotos">0</button>
+</div>
+<div id="blitz"></div>
+
+<section id="start" class="seite an">
+  <h1>Randenblick Kamera</h1>
+  <p>Macht Fotos und schreibt <b>Standort, Höhe, Blickrichtung, Neigung und Kippung</b> direkt in die Bilddatei.
+    Die Fotos bleiben auf dem Handy – nichts wird ins Internet geschickt.</p>
+  <button id="los" class="knopf haupt">Kamera und Sensoren starten</button>
+  <p id="startfehler" class="fehler"></p>
+  <h2>So werden die Daten möglichst genau</h2>
+  <ul>
+    <li>Im Freien warten, bis die GPS-Anzeige <span class="good">grün</span> ist (unter 5 m). Drinnen ist GPS meist 10–30 m daneben.</li>
+    <li>Kompass kalibrieren: Handy ein paarmal in einer liegenden Acht schwenken.</li>
+    <li>Abstand halten von Autos, Stahlträgern, Geländern und Lautsprechern – sie verbiegen den Kompass.</li>
+    <li>Beim Auslösen kurz ruhig halten. Die App mittelt die Lage über eine halbe Sekunde und den Standort über bis zu 10 Sekunden.</li>
+    <li>Android-Einstellung <i>Standort → Standortgenauigkeit</i> einschalten.</li>
+  </ul>
+  <h2>Was im Foto steht</h2>
+  <p>EXIF-GPS (Breite, Länge, Höhe ü. M., Genauigkeit, Blickrichtung geografisch Nord) und im Kommentar Neigung, Kippung,
+    LV95-Koordinaten und Messstreuung. In der Fotoliste gibt es zusätzlich eine CSV-Tabelle mit allen Werten.</p>
+</section>
+
+<section id="galerie" class="seite">
+  <button id="zurueck" class="knopf">‹ Zur Kamera</button>
+  <h1>Aufgenommene Fotos</h1>
+  <p id="galerieinfo"></p>
+  <label class="schalter"><input type="checkbox" id="autospeichern" checked> Jedes Foto sofort in «Downloads» speichern</label>
+  <div>
+    <button id="alleteilen" class="knopf">Alle teilen / speichern</button>
+    <button id="csvknopf" class="knopf">CSV-Tabelle</button>
+    <button id="leeren" class="knopf weg">Liste leeren</button>
+  </div>
+  <div id="liste"></div>
+</section>
+
+<dialog id="notizdialog">
+  <form method="dialog">
+    <p>Notiz für die nächsten Fotos (z. B. Raum oder Standort):</p>
+    <input type="text" id="notiz" maxlength="80" autocomplete="off">
+    <p><button class="knopf" value="ok">Übernehmen</button></p>
+  </form>
+</dialog>
+
+<script src="rechnen.js?v=1"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const sicher = (f, d) => { try { return f(); } catch { return d; } };
+
+// ---------- Zustand ----------
+const fixes = [];            // GPS-Messungen
+const lagen = [];            // Lage-Messungen {t, f, u, r, h}
+let quelle = null;           // 'sensor' | 'event' | null
+let stream = null, spur = null, imageCapture = null;
+let fotos = [];              // {id, name, blob, url, meta}
+let wakeLock = null;
+
+// ---------- Speicher (IndexedDB) ----------
+let db = null;
+function dbOeffnen() {
+  return new Promise(ok => {
+    const r = sicher(() => indexedDB.open('randenblick-kamera', 1), null);
+    if (!r) return ok(null);
+    r.onupgradeneeded = () => r.result.createObjectStore('fotos', { keyPath: 'id' });
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => ok(null);
+  });
+}
+function dbTun(modus, fn) {
+  if (!db) return Promise.resolve(null);
+  return new Promise(ok => {
+    try {
+      const tx = db.transaction('fotos', modus), st = tx.objectStore('fotos'), r = fn(st);
+      tx.oncomplete = () => ok(r && r.result); tx.onerror = () => ok(null);
+    } catch { ok(null); }
+  });
+}
+
+// ---------- GPS ----------
+function gpsStarten() {
+  if (!('geolocation' in navigator)) return hinweis('Dieses Gerät liefert keinen Standort.');
+  navigator.geolocation.watchPosition(p => {
+    const c = p.coords;
+    fixes.push({ t: p.timestamp || Date.now(), lat: c.latitude, lon: c.longitude, acc: c.accuracy,
+      alt: c.altitude, altAcc: c.altitudeAccuracy });
+    while (fixes.length && Date.now() - fixes[0].t > 30000) fixes.shift();
+  }, e => {
+    hinweis(e.code === 1 ? 'Standort nicht erlaubt. In Chrome: Schloss-Symbol → Berechtigungen → Standort.' : 'Kein GPS-Empfang …');
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+}
+
+// ---------- Lage ----------
+const bildschirmWinkel = () => sicher(() => screen.orientation.angle, null) ?? (window.orientation || 0);
+function lageMerken(R) {
+  const v = RB.cameraVectors(R, bildschirmWinkel());
+  v.t = performance.now();
+  v.h = RB.angles(v).headingMag;
+  lagen.push(v);
+  while (lagen.length && v.t - lagen[0].t > 2000) lagen.shift();
+}
+function lageStarten() {
+  return new Promise(ok => {
+    let fertig = false;
+    const weiter = q => { if (!fertig) { fertig = true; quelle = q; ok(q); } };
+    const eventStarten = () => {
+      window.addEventListener('deviceorientationabsolute', e => {
+        if (e.alpha == null) return;
+        if (quelle !== 'sensor') lageMerken(RB.matFromEuler(e.alpha, e.beta, e.gamma));
+        weiter('event');
+      });
+      setTimeout(() => weiter(null), 3000);
+    };
+    if ('AbsoluteOrientationSensor' in window) {
+      try {
+        const s = new AbsoluteOrientationSensor({ frequency: 60, referenceFrame: 'device' });
+        s.addEventListener('reading', () => { lageMerken(RB.matFromQuat(s.quaternion)); weiter('sensor'); });
+        s.addEventListener('error', () => { if (quelle === 'sensor') quelle = null; eventStarten(); });
+        s.start();
+        setTimeout(() => { if (!fertig) eventStarten(); }, 1500);
+        return;
+      } catch { /* weiter mit Ereignis */ }
+    }
+    eventStarten();
+  });
+}
+
+// ---------- Kamera ----------
+async function kameraStarten() {
+  const wunsch = [
+    { facingMode: { exact: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } },
+    { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } },
+    { facingMode: 'environment' }
+  ];
+  let fehler;
+  for (const video of wunsch) {
+    try { stream = await navigator.mediaDevices.getUserMedia({ video, audio: false }); break; } catch (e) { fehler = e; }
+  }
+  if (!stream) throw fehler || new Error('Keine Kamera');
+  spur = stream.getVideoTracks()[0];
+  $('bild').srcObject = stream;
+  await $('bild').play().catch(() => {});
+  if ('ImageCapture' in window) imageCapture = sicher(() => new ImageCapture(spur), null);
+}
+
+// Kleines Graustufenbild zum Vergleichen der Bildlage.
+function mini(quelle, w, h, rot, sw, sh) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  // Bei 90°/270° wird die Quellhöhe zur Zielbreite.
+  const sx = rot % 180 ? w / sh : w / sw, sy = rot % 180 ? h / sw : h / sh;
+  g.setTransform(...RB.rotTransform(rot, sw, sh, 0, 0, sx, sy));
+  g.drawImage(quelle, 0, 0);
+  const d = g.getImageData(0, 0, w, h).data, out = new Float32Array(w * h);
+  let m = 0;
+  for (let i = 0; i < out.length; i++) { out[i] = d[4 * i] * .3 + d[4 * i + 1] * .59 + d[4 * i + 2] * .11; m += out[i]; }
+  m /= out.length;
+  for (let i = 0; i < out.length; i++) out[i] -= m;
+  return out;
+}
+
+// Dreht das Foto so, dass es gleich liegt wie das Vorschaubild.
+function drehungFinden(bmp, video) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const w = 32, h = Math.max(8, Math.round(32 * vh / vw));
+  const ref = mini(video, w, h, 0, vw, vh);
+  const hoch = vh > vw;
+  let beste = 0, bestWert = Infinity;
+  for (const rot of [0, 90, 180, 270]) {
+    const rw = rot % 180 ? bmp.height : bmp.width, rh = rot % 180 ? bmp.width : bmp.height;
+    if ((rh > rw) !== hoch && rw !== rh) continue;
+    const t = mini(bmp, w, h, rot, bmp.width, bmp.height);
+    let s = 0;
+    for (let i = 0; i < t.length; i++) s += Math.abs(t[i] - ref[i]);
+    if (s < bestWert) { bestWert = s; beste = rot; }
+  }
+  return beste;
+}
+
+async function rohbild() {
+  const video = $('bild');
+  if (imageCapture) {
+    try {
+      const blob = await imageCapture.takePhoto();
+      const bmp = await createImageBitmap(blob);
+      if (bmp.width * bmp.height >= video.videoWidth * video.videoHeight) {
+        return { bmp, rot: drehungFinden(bmp, video), art: 'foto' };
+      }
+      bmp.close && bmp.close();
+    } catch { /* Videobild nehmen */ }
+  }
+  const bmp = await createImageBitmap(video);
+  return { bmp, rot: 0, art: 'video' };
+}
+
+function jpegAusBild(bmp, rot) {
+  const W = bmp.width, H = bmp.height, cw = rot % 180 ? H : W, ch = rot % 180 ? W : H;
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const g = c.getContext('2d');
+  g.setTransform(...RB.rotTransform(rot, W, H, 0, 0, 1, 1));
+  g.drawImage(bmp, 0, 0);
+  return new Promise((ok, f) => c.toBlob(b => b ? ok({ blob: b, w: cw, h: ch }) : f(new Error('JPEG')), 'image/jpeg', 0.95));
+}
+
+// ---------- Messwerte ----------
+function jetzigeLage(ms = 600) {
+  const t = performance.now(), liste = lagen.filter(l => t - l.t <= ms);
+  if (!liste.length) return null;
+  const p = RB.averagePose(liste), a = RB.angles(p);
+  a.streuung = RB.headingSpread(liste.map(l => l.h));
+  a.n = liste.length; a.p = p;
+  return a;
+}
+const f1 = (v, n = 1) => v == null || !isFinite(v) ? '' : v.toFixed(n);
+const klasse = (v, gut, mittel) => v == null ? 'bad' : v <= gut ? 'good' : v <= mittel ? 'ok' : 'bad';
+
+function anzeigen() {
+  const pos = RB.positionEstimate(fixes, Date.now());
+  if (pos) {
+    $('gps').textContent = '±' + (pos.acc < 10 ? pos.acc.toFixed(1) : Math.round(pos.acc)) + ' m';
+    $('gps').className = klasse(pos.acc, 5, 12);
+    $('gpsx').textContent = pos.alter > 5 ? 'alt: ' + Math.round(pos.alter) + ' s' : pos.n + ' Messungen';
+    const lv = RB.lv95(pos.lat, pos.lon, pos.alt);
+    $('ortzeile').textContent = 'LV95 ' + Math.round(lv.E) + ' / ' + Math.round(lv.N) +
+      (lv.H != null ? ' · ' + Math.round(lv.H) + ' m ü. M.' + (pos.altAcc ? ' ±' + Math.round(pos.altAcc) : '') : '');
+  }
+  const a = jetzigeLage(400);
+  if (a) {
+    $('richtung').textContent = Math.round(a.headingTrue) + '° ' + RB.cardinal(a.headingTrue);
+    $('richtungx').textContent = a.steil ? 'steil: Bildoberkante' : (a.streuung != null ? 'ruhig ±' + f1(a.streuung) + '°' : '');
+    $('richtungx').className = a.streuung != null && a.streuung > 2 ? 'ok' : '';
+    $('neigung').textContent = (a.pitch > 0 ? '+' : '') + Math.round(a.pitch) + '° · ' + (a.roll > 0 ? '+' : '') + Math.round(a.roll) + '°';
+    $('neigungx').textContent = quelle === 'sensor' ? 'Lagesensor' : 'Kompass-Ereignis';
+    const lin = $('linie');
+    lin.style.transform = 'rotate(' + (-a.roll).toFixed(1) + 'deg)';
+    lin.className = Math.abs(a.roll) < 1 ? 'gerade' : '';
+  } else if (quelle === null) {
+    $('richtung').textContent = '–'; $('richtungx').textContent = 'kein Kompass';
+  }
+}
+
+let hinweisZeit = 0;
+function hinweis(text, ms = 4000) {
+  const h = $('hinweis');
+  h.textContent = text; h.classList.add('an');
+  clearTimeout(hinweisZeit); hinweisZeit = setTimeout(() => h.classList.remove('an'), ms);
+}
+
+// ---------- Aufnehmen ----------
+const zeitzone = d => { const o = -d.getTimezoneOffset(); return (o < 0 ? '-' : '+') + RB.pad(Math.floor(Math.abs(o) / 60)) + ':' + RB.pad(Math.abs(o) % 60); };
+
+async function aufnehmen() {
+  const knopf = $('ausloeser');
+  if (knopf.disabled) return;
+  knopf.disabled = true;
+  const jetzt = new Date();
+  const lage = jetzigeLage(600);
+  const pos = RB.positionEstimate(fixes, Date.now());
+  $('blitz').style.opacity = .6; setTimeout(() => $('blitz').style.opacity = 0, 80);
+  try {
+    const roh = await rohbild();
+    const { blob: jpg, w, h } = await jpegAusBild(roh.bmp, roh.rot);
+    roh.bmp.close && roh.bmp.close();
+    const lv = pos ? RB.lv95(pos.lat, pos.lon, pos.alt) : null;
+    const notiz = $('notiz').value.trim();
+    const zeile = {
+      zeit: jetzt.toISOString(), lat: pos && pos.lat.toFixed(7), lon: pos && pos.lon.toFixed(7),
+      hoehe_ell_m: pos && f1(pos.alt, 1), gps_genau_m: pos && f1(pos.acc, 1), hoehe_genau_m: pos && f1(pos.altAcc, 1),
+      gps_messungen: pos && pos.n, gps_alter_s: pos && f1(pos.alter, 1),
+      lv95_e: lv && lv.E.toFixed(2), lv95_n: lv && lv.N.toFixed(2), hoehe_ln02_m: lv && f1(lv.H, 1),
+      richtung_geo_grad: lage && f1(lage.headingTrue, 2), richtung_mag_grad: lage && f1(lage.headingMag, 2),
+      neigung_grad: lage && f1(lage.pitch, 2), kippung_grad: lage && f1(lage.roll, 2),
+      richtung_streuung_grad: lage && f1(lage.streuung, 2),
+      blick_x: lage && lage.p.f[0].toFixed(5), blick_y: lage && lage.p.f[1].toFixed(5), blick_z: lage && lage.p.f[2].toFixed(5),
+      oben_x: lage && lage.p.u[0].toFixed(5), oben_y: lage && lage.p.u[1].toFixed(5), oben_z: lage && lage.p.u[2].toFixed(5),
+      quelle: [roh.art, quelle || 'ohne-lage', lage && lage.steil ? 'steil' : ''].filter(Boolean).join('+'),
+      breite_px: w, hoehe_px: h, notiz
+    };
+    const S = RB.pad;
+    const name = 'RB_' + jetzt.getFullYear() + S(jetzt.getMonth() + 1) + S(jetzt.getDate()) + '_' + S(jetzt.getHours()) +
+      S(jetzt.getMinutes()) + S(jetzt.getSeconds()) + '_' + S(jetzt.getMilliseconds(), 3) + '.jpg';
+    zeile.datei = name;
+    const kommentar = ['Randenblick Kamera',
+      lage ? `richtung_geo=${zeile.richtung_geo_grad} richtung_mag=${zeile.richtung_mag_grad} dekl=${RB.DEKLINATION}` : 'keine Lage',
+      lage ? `neigung=${zeile.neigung_grad} kippung=${zeile.kippung_grad} streuung=${zeile.richtung_streuung_grad}` : '',
+      pos ? `gps_genau=${zeile.gps_genau_m}m hoehe_ell=${zeile.hoehe_ell_m} hoehe_genau=${zeile.hoehe_genau_m} n=${pos.n} alter=${zeile.gps_alter_s}s` : 'kein GPS',
+      lv ? `lv95=${zeile.lv95_e},${zeile.lv95_n} h_ln02=${zeile.hoehe_ln02_m}` : '',
+      'quelle=' + zeile.quelle, notiz ? 'notiz=' + notiz : ''].filter(Boolean).join('; ');
+    const tiff = RB.buildTiff({
+      local: jetzt, offset: zeitzone(jetzt), width: w, height: h, comment: kommentar, description: notiz || null,
+      gps: pos ? { lat: pos.lat, lon: pos.lon, alt: lv && lv.H != null ? lv.H : null, acc: pos.acc, t: pos.t } : null,
+      dir: lage ? lage.headingTrue : null
+    });
+    const bytes = RB.insertExif(new Uint8Array(await jpg.arrayBuffer()), tiff);
+    const blob = new Blob([bytes], { type: 'image/jpeg' });
+    const foto = { id: name, name, blob, meta: zeile };
+    fotos.push(foto);
+    fotoAnzeigen(foto);
+    await dbTun('readwrite', st => st.put({ id: name, name, blob, meta: zeile }));
+    if ($('autospeichern').checked) herunterladen(blob, name);
+    const warn = [];
+    if (!pos) warn.push('ohne GPS'); else if (pos.acc > 12) warn.push('GPS ungenau (±' + Math.round(pos.acc) + ' m)');
+    if (!lage) warn.push('ohne Richtung'); else if (lage.streuung > 3) warn.push('verwackelt');
+    hinweis('Gespeichert' + (warn.length ? ' – ' + warn.join(', ') : '') + ' · ' + w + '×' + h, 2500);
+  } catch (e) {
+    hinweis('Aufnahme fehlgeschlagen: ' + (e && e.message || e), 6000);
+  } finally {
+    knopf.disabled = false;
+  }
+}
+
+function herunterladen(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+// ---------- Galerie ----------
+function fotoAnzeigen(foto) {
+  foto.url = foto.url || URL.createObjectURL(foto.blob);
+  const m = foto.meta, el = document.createElement('div');
+  el.className = 'foto';
+  const img = document.createElement('img'); img.src = foto.url; img.alt = foto.name; img.loading = 'lazy';
+  const t = document.createElement('div');
+  const zeit = new Date(m.zeit);
+  t.innerHTML = '<b></b><br><span></span><br><span></span>';
+  t.children[0].textContent = zeit.toLocaleTimeString('de-CH') + (m.notiz ? ' · ' + m.notiz : '');
+  t.children[2].textContent = m.gps_genau_m ? '±' + m.gps_genau_m + ' m · ' + m.lv95_e.split('.')[0] + '/' + m.lv95_n.split('.')[0] : 'ohne GPS';
+  t.children[4].textContent = m.richtung_geo_grad ? m.richtung_geo_grad + '° · Neigung ' + m.neigung_grad + '°' : 'ohne Richtung';
+  el.append(img, t);
+  el.onclick = () => herunterladen(foto.blob, foto.name);
+  $('liste').prepend(el);
+  $('galerieknopf').textContent = fotos.length;
+  $('galerieknopf').style.backgroundImage = 'url("' + foto.url + '")';
+  $('galerieinfo').textContent = fotos.length + ' Fotos auf diesem Handy gespeichert. Antippen lädt ein einzelnes Foto herunter.';
+}
+
+$('alleteilen').onclick = async () => {
+  if (!fotos.length) return;
+  const files = fotos.map(f => new File([f.blob], f.name, { type: 'image/jpeg' }));
+  files.push(new File([RB.csv(fotos.map(f => f.meta))], 'randenblick-fotos.csv', { type: 'text/csv' }));
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ files, title: 'Randenblick Fotos' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  fotos.forEach(f => herunterladen(f.blob, f.name));
+  herunterladen(new Blob([RB.csv(fotos.map(f => f.meta))], { type: 'text/csv' }), 'randenblick-fotos.csv');
+};
+$('csvknopf').onclick = () => {
+  const name = 'randenblick-fotos_' + new Date().toISOString().slice(0, 10) + '.csv';
+  herunterladen(new Blob([RB.csv(fotos.map(f => f.meta))], { type: 'text/csv;charset=utf-8' }), name);
+};
+$('leeren').onclick = async () => {
+  if (!fotos.length || !confirm('Liste leeren? Fotos, die schon in «Downloads» oder in der Galerie liegen, bleiben dort.')) return;
+  await dbTun('readwrite', st => st.clear());
+  fotos.forEach(f => f.url && URL.revokeObjectURL(f.url));
+  fotos = []; $('liste').replaceChildren();
+  $('galerieknopf').textContent = '0'; $('galerieknopf').style.backgroundImage = '';
+  $('galerieinfo').textContent = 'Keine Fotos in der Liste.';
+};
+$('galerieknopf').onclick = () => $('galerie').classList.add('an');
+$('zurueck').onclick = () => $('galerie').classList.remove('an');
+$('notizknopf').onclick = () => $('notizdialog').showModal();
+$('notizdialog').addEventListener('close', () => {
+  sicher(() => localStorage.setItem('rb-notiz', $('notiz').value.trim()));
+  if ($('notiz').value.trim()) hinweis('Notiz: ' + $('notiz').value.trim(), 2000);
+});
+$('autospeichern').onchange = () => sicher(() => localStorage.setItem('rb-auto', $('autospeichern').checked ? '1' : '0'));
+$('ausloeser').onclick = aufnehmen;
+document.addEventListener('keydown', e => { if ((e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown') && !$('galerie').classList.contains('an')) { e.preventDefault(); aufnehmen(); } });
+
+async function wachHalten() {
+  try { if ('wakeLock' in navigator && !document.hidden) wakeLock = await navigator.wakeLock.request('screen'); } catch { }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && stream) wachHalten(); });
+
+// ---------- Start ----------
+$('los').onclick = async () => {
+  $('los').disabled = true; $('startfehler').textContent = '';
+  if (!window.isSecureContext) { $('startfehler').textContent = 'Die Seite muss über https:// geöffnet werden.'; $('los').disabled = false; return; }
+  gpsStarten();
+  try {
+    await kameraStarten();
+  } catch (e) {
+    $('startfehler').textContent = 'Kamera nicht verfügbar: ' + (e && (e.name === 'NotAllowedError' ? 'nicht erlaubt (Chrome: Schloss-Symbol → Berechtigungen)' : e.message || e.name));
+    $('los').disabled = false; return;
+  }
+  $('start').classList.remove('an');
+  ['oben', 'waage', 'unten'].forEach(id => $(id).hidden = false);
+  wachHalten();
+  const q = await lageStarten();
+  if (!q) hinweis('Kein Kompass gefunden – Fotos bekommen nur GPS.', 6000);
+  else hinweis('Kompass kalibrieren: Handy ein paarmal in einer Acht schwenken.', 5000);
+  setInterval(anzeigen, 100);
+};
+
+(async () => {
+  $('notiz').value = sicher(() => localStorage.getItem('rb-notiz'), '') || '';
+  $('autospeichern').checked = sicher(() => localStorage.getItem('rb-auto'), '1') !== '0';
+  db = await dbOeffnen();
+  const alle = await dbTun('readonly', st => st.getAll());
+  if (alle && alle.length) { alle.sort((a, b) => a.name < b.name ? -1 : 1); fotos = alle; alle.forEach(fotoAnzeigen); }
+  else $('galerieinfo').textContent = 'Noch keine Fotos.';
+})();
+</script>
+</body>
+</html>
