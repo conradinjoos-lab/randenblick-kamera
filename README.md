@@ -9,6 +9,8 @@ Web-App für Android-Chrome: Sie macht Fotos und schreibt Standort, Höhe, Blick
 
 Neigung: 0° = waagrecht, −90° = senkrecht nach unten. Kippung: + = rechte Bildseite tiefer.
 
+Bildformat: immer 16:9, mittig aus dem Sensorbild geschnitten. Die App geht beim Start auf Vollbild und stellt quer fest (`screen.orientation.lock('landscape')`, als installierte App über das Manifest). Die Vorschau zeigt genau den Ausschnitt, der ins Foto kommt. Nur wenn das Feststellen nicht klappt und das Handy hoch steht, wird das Foto hoch (9:16).
+
 ## Raumliste («Was fehlt»)
 
 - Die Liste der Räume und Motive steht **nicht** in diesem Repo. Sie kommt gepackt im Link-Anhang `#liste=…` (JSON, deflate-raw, base64url).
